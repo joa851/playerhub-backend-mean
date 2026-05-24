@@ -1,0 +1,158 @@
+name: CI/CD - MEAN Backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write          # imprescindible para Workload Identity Federation
+  pull-requests: write     # para que Sonar comente PRs
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. Lint + tests con cobertura
+  # ─────────────────────────────────────────────────────────────────────
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Sonar necesita historial completo
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test with coverage
+        run: npm test
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. SonarCloud (lee lcov.info de la cobertura)
+  # ─────────────────────────────────────────────────────────────────────
+  sonar:
+    name: SonarCloud analysis
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 3. Build + push de la imagen Docker (solo en push a main)
+  # ─────────────────────────────────────────────────────────────────────
+  docker:
+    name: Docker build & push
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute image tag
+        id: tag
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          docker build \
+            -t ${{ vars.GCP_ARTIFACT_REGISTRY }}/backend-mean:${{ steps.tag.outputs.tag }} \
+            -t ${{ vars.GCP_ARTIFACT_REGISTRY }}/backend-mean:latest \
+            .
+
+      - name: Push image
+        run: |
+          docker push ${{ vars.GCP_ARTIFACT_REGISTRY }}/backend-mean:${{ steps.tag.outputs.tag }}
+          docker push ${{ vars.GCP_ARTIFACT_REGISTRY }}/backend-mean:latest
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 4. Despliegue a Cloud Run
+  # ─────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Cloud Run
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy playerhub-backend-mean \
+            --image=${{ vars.GCP_ARTIFACT_REGISTRY }}/backend-mean:sha-${GITHUB_SHA::7} \
+            --region=${{ vars.GCP_REGION }} \
+            --service-account=${{ vars.GCP_RUNTIME_SA }} \
+            --allow-unauthenticated \
+            --port=8080 \
+            --cpu=1 \
+            --memory=256Mi \
+            --max-instances=2 \
+            --update-env-vars="MONGODB_HOST=34.60.145.174,MONGODB_USER=playerhub,MONGODB_DB=playerhub-mean" \
+            --update-secrets="MONGODB_PASSWORD=playerhub-mongo-password:latest" \
+            --quiet
+
+      - name: Print service URL
+        run: |
+          URL=$(gcloud run services describe playerhub-backend-mean \
+            --region=${{ vars.GCP_REGION }} \
+            --format='value(status.url)')
+          echo "::notice title=Service URL::playerhub-backend-mean → $URL"
