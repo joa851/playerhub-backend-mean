@@ -84,4 +84,47 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+// ─── Comments (embebidos en el player) ─────────────────────────────────
+
+// POST /players/:id/comments
+router.post('/:id/comments', async (req, res, next) => {
+  try {
+    if (!isValidId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid player id' });
+    }
+    const created = await playerService.addComment(req.params.id, req.body);
+    if (created === null) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    res.status(201).json(created);
+  } catch (err) {
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ error: err.message });
+    }
+    next(err);
+  }
+});
+
+// DELETE /players/:id/comments/:commentId
+router.delete('/:id/comments/:commentId', async (req, res, next) => {
+  try {
+    if (!isValidId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid player id' });
+    }
+    if (!isValidId(req.params.commentId)) {
+      return res.status(400).json({ error: 'Invalid comment id' });
+    }
+    const result = await playerService.removeComment(req.params.id, req.params.commentId);
+    if (!result.playerFound) {
+      return res.status(404).json({ error: 'Player not found' });
+    }
+    if (!result.commentFound) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

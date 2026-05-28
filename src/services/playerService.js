@@ -43,10 +43,46 @@ async function remove(id) {
   return result !== null;   // true si se borró, false si no existía
 }
 
+/**
+ * Añade un comment embebido al array `comments` del player.
+ * Devuelve el comment ya creado (con _id) o null si el player no existe.
+ */
+async function addComment(playerId, commentData) {
+  const player = await Player.findById(playerId);
+  if (!player) return null;
+
+  player.comments.push(commentData);
+  await player.save();          // dispara validators del subschema
+  // El comment recién añadido es el último del array.
+  return player.comments[player.comments.length - 1];
+}
+
+/**
+ * Borra un comment embebido por su _id.
+ * Devuelve un objeto:
+ *   - { playerFound: false }  si el player no existe
+ *   - { playerFound: true, commentFound: false }  si el player existe pero no el comment
+ *   - { playerFound: true, commentFound: true }   si se borró OK
+ */
+async function removeComment(playerId, commentId) {
+  const player = await Player.findById(playerId);
+  if (!player) return { playerFound: false };
+
+  const before = player.comments.length;
+  player.comments.pull({ _id: commentId });
+  if (player.comments.length === before) {
+    return { playerFound: true, commentFound: false };
+  }
+  await player.save();
+  return { playerFound: true, commentFound: true };
+}
+
 module.exports = {
   findAll,
   findById,
   create,
   update,
   remove,
+  addComment,
+  removeComment,
 };
