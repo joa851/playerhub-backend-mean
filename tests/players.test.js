@@ -254,6 +254,127 @@ describe('POST /players/:id/comments', () => {
   });
 });
 
+// ─── GET /players/external (API-Football) ─────────────────────────────
+
+describe('GET /players/external', () => {
+  let savedFetch;
+  let savedKey;
+
+  beforeEach(() => {
+    savedFetch = global.fetch;
+    savedKey = process.env.API_FOOTBALL_KEY;
+    process.env.API_FOOTBALL_KEY = 'test-key';
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = savedFetch;
+    if (savedKey === undefined) delete process.env.API_FOOTBALL_KEY;
+    else process.env.API_FOOTBALL_KEY = savedKey;
+  });
+
+  it('returns 200 with players extracted from API-Football response', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: [
+          { player: { id: 1, name: 'Messi', position: 'Attacker' } },
+          { player: { id: 2, name: 'Ronaldo', position: 'Attacker' } },
+        ],
+      }),
+    });
+
+    const res = await request(app).get('/players/external').query({ query: 'star' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].name).toBe('Messi');
+  });
+
+  it('returns 400 when query is missing', async () => {
+    const res = await request(app).get('/players/external');
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 503 when API_FOOTBALL_KEY is not configured', async () => {
+    delete process.env.API_FOOTBALL_KEY;
+    const res = await request(app).get('/players/external').query({ query: 'x' });
+    expect(res.status).toBe(503);
+  });
+
+  it('returns 502 when API-Football fails (network)', async () => {
+    global.fetch.mockRejectedValue(new Error('network down'));
+    const res = await request(app).get('/players/external').query({ query: 'x' });
+    expect(res.status).toBe(502);
+  });
+});
+
+// ─── POST /players/external/import ────────────────────────────────────
+
+describe('POST /players/external/import', () => {
+  let savedFetch;
+  let savedKey;
+
+  beforeEach(() => {
+    savedFetch = global.fetch;
+    savedKey = process.env.API_FOOTBALL_KEY;
+    process.env.API_FOOTBALL_KEY = 'test-key';
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = savedFetch;
+    if (savedKey === undefined) delete process.env.API_FOOTBALL_KEY;
+    else process.env.API_FOOTBALL_KEY = savedKey;
+  });
+
+  it('imports a new player and returns 201', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        response: [{ player: { id: 100, name: 'Imported', position: 'Defender' } }],
+      }),
+    });
+
+    const res = await request(app).post('/players/external/import').send([100]);
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].externalId).toBe(100);
+    expect(res.body[0].name).toBe('Imported');
+    expect(res.body[0]._id).toBeDefined();
+
+    // verificación: existe en DB
+    const fromDb = await Player.findOne({ externalId: 100 });
+    expect(fromDb).not.toBeNull();
+  });
+
+  it('skips players already imported (same externalId)', async () => {
+    await Player.create({ externalId: 200, name: 'Existing' });
+
+    const res = await request(app).post('/players/external/import').send([200]);
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveLength(0);          // nada importado
+    expect(global.fetch).not.toHaveBeenCalled();  // no se llamó al API
+  });
+
+  it('returns 400 when body is empty', async () => {
+    const res = await request(app).post('/players/external/import').send([]);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when body is not an array', async () => {
+    const res = await request(app)
+      .post('/players/external/import')
+      .send({ ids: [1, 2] });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 503 when API_FOOTBALL_KEY is not configured', async () => {
+    delete process.env.API_FOOTBALL_KEY;
+    const res = await request(app).post('/players/external/import').send([1]);
+    expect(res.status).toBe(503);
+  });
+});
+
 // ─── DELETE /players/:id/comments/:commentId ───────────────────────────
 
 describe('DELETE /players/:id/comments/:commentId', () => {
