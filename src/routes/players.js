@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const playerService = require('../services/playerService');
+const apiFootballService = require('../services/apiFootballService');
 
 const router = express.Router();
 
@@ -8,6 +9,45 @@ const router = express.Router();
 function isValidId(id) {
   return mongoose.Types.ObjectId.isValid(id);
 }
+
+// Helper para traducir errores de API-Football a códigos HTTP.
+function handleExternalError(res, err) {
+  if (err.code === 'NO_KEY') {
+    return res.status(503).json({ error: err.message });
+  }
+  return res.status(502).json({ error: 'API-Football unreachable: ' + err.message });
+}
+
+// ─── API-Football ──────────────────────────────────────────────────────
+// GET /players/external?query=
+router.get('/external', async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.status(400).json({ error: 'query parameter is required' });
+    }
+    const results = await apiFootballService.search(query);
+    res.json(results);
+  } catch (err) {
+    return handleExternalError(res, err);
+  }
+});
+
+// POST /players/external/import   body: [123, 456, ...]
+router.post('/external/import', async (req, res) => {
+  try {
+    const ids = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Body must be a non-empty array of ids' });
+    }
+    const imported = await apiFootballService.importByIds(ids);
+    res.status(201).json(imported);
+  } catch (err) {
+    return handleExternalError(res, err);
+  }
+});
+
+// ─── CRUD local ────────────────────────────────────────────────────────
 
 // GET /players?name=&team=&league=&from=&to=
 router.get('/', async (req, res, next) => {
