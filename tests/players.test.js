@@ -177,3 +177,117 @@ describe('DELETE /players/:id', () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ─── POST /players/:id/comments ────────────────────────────────────────
+
+describe('POST /players/:id/comments', () => {
+  it('adds a comment and returns 201 with the created comment', async () => {
+    const p = await seedPlayer({ name: 'Pedri' });
+
+    const res = await request(app)
+      .post(`/players/${p._id}/comments`)
+      .send({
+        author: 'Anon',
+        text: 'Crack absoluto',
+        rating: 5,
+        location: { latitude: 41.38, longitude: 2.13 },
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body._id).toBeDefined();
+    expect(res.body.author).toBe('Anon');
+    expect(res.body.rating).toBe(5);
+    expect(res.body.createdAt).toBeDefined();
+
+    // verificación: el player ahora tiene 1 comment embebido
+    const fresh = await Player.findById(p._id);
+    expect(fresh.comments).toHaveLength(1);
+    expect(fresh.comments[0].text).toBe('Crack absoluto');
+  });
+
+  it('returns 400 when author is missing', async () => {
+    const p = await seedPlayer();
+
+    const res = await request(app)
+      .post(`/players/${p._id}/comments`)
+      .send({ text: 'Sin autor', rating: 3 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when rating is out of range (>5)', async () => {
+    const p = await seedPlayer();
+
+    const res = await request(app)
+      .post(`/players/${p._id}/comments`)
+      .send({ author: 'A', text: 'X', rating: 10 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when text exceeds 1000 chars', async () => {
+    const p = await seedPlayer();
+    const huge = 'x'.repeat(1001);
+
+    const res = await request(app)
+      .post(`/players/${p._id}/comments`)
+      .send({ author: 'A', text: huge, rating: 3 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 when player does not exist', async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+
+    const res = await request(app)
+      .post(`/players/${fakeId}/comments`)
+      .send({ author: 'A', text: 'X', rating: 3 });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 on invalid player id', async () => {
+    const res = await request(app)
+      .post('/players/bad-id/comments')
+      .send({ author: 'A', text: 'X', rating: 3 });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ─── DELETE /players/:id/comments/:commentId ───────────────────────────
+
+describe('DELETE /players/:id/comments/:commentId', () => {
+  it('deletes a comment and returns 204', async () => {
+    const p = await seedPlayer();
+    p.comments.push({ author: 'A', text: 'borrame', rating: 2 });
+    await p.save();
+    const commentId = p.comments[0]._id;
+
+    const res = await request(app).delete(`/players/${p._id}/comments/${commentId}`);
+    expect(res.status).toBe(204);
+
+    // verificación
+    const fresh = await Player.findById(p._id);
+    expect(fresh.comments).toHaveLength(0);
+  });
+
+  it('returns 404 when player does not exist', async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+    const fakeCommentId = new mongoose.Types.ObjectId();
+    const res = await request(app).delete(`/players/${fakeId}/comments/${fakeCommentId}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when comment does not exist in the player', async () => {
+    const p = await seedPlayer();
+    const fakeCommentId = new mongoose.Types.ObjectId();
+    const res = await request(app).delete(`/players/${p._id}/comments/${fakeCommentId}`);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 on invalid comment id', async () => {
+    const p = await seedPlayer();
+    const res = await request(app).delete(`/players/${p._id}/comments/not-valid`);
+    expect(res.status).toBe(400);
+  });
+});
