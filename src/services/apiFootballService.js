@@ -57,7 +57,8 @@ async function importByIds(ids) {
     const existing = await Player.findOne({ externalId: id });
     if (existing) continue;
 
-    const body = await callApiFootball({ id });
+    // API-Football usa el query param `player` para id lookup.
+    const body = await callApiFootball({ player: id });
     const remote = extractPlayers(body);
     if (remote.length === 0) continue;
 
