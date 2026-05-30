@@ -1,11 +1,14 @@
 // Mockeamos el middleware de auth como passthrough en este archivo:
-// los tests de rutas validan lógica de negocio, no Firebase. Los tests
-// reales del middleware viven en tests/auth.test.js.
+// los tests de rutas validan lógica de negocio, no Firebase ni roles.
+// Los tests reales del middleware viven en tests/auth.test.js.
+// En el mock el usuario es admin, así pasan también los endpoints
+// protegidos con requireAdmin (PUT/DELETE jugador, DELETE comment).
 jest.mock('../src/middleware/auth', () => ({
   requireAuth: (req, _res, next) => {
-    req.user = { uid: 'test-uid', email: 'test@example.com' };
+    req.user = { uid: 'test-uid', email: 'admin@example.com', admin: true };
     next();
   },
+  requireAdmin: (_req, _res, next) => next(),
 }));
 
 const { MongoMemoryServer } = require('mongodb-memory-server');

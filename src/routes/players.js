@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const playerService = require('../services/playerService');
 const apiFootballService = require('../services/apiFootballService');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -111,8 +111,8 @@ router.post('/', requireAuth, async (req, res, next) => {
   }
 });
 
-// PUT /players/:id
-router.put('/:id', requireAuth, async (req, res, next) => {
+// PUT /players/:id   (solo admin)
+router.put('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid player id' });
@@ -127,8 +127,8 @@ router.put('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-// DELETE /players/:id
-router.delete('/:id', requireAuth, async (req, res, next) => {
+// DELETE /players/:id   (solo admin)
+router.delete('/:id', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid player id' });
@@ -161,8 +161,8 @@ router.post('/:id/comments', requireAuth, async (req, res, next) => {
   }
 });
 
-// DELETE /players/:id/comments/:commentId
-router.delete('/:id/comments/:commentId', requireAuth, async (req, res, next) => {
+// DELETE /players/:id/comments/:commentId   (solo admin)
+router.delete('/:id/comments/:commentId', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid player id' });
