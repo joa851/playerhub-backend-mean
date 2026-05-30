@@ -82,6 +82,15 @@ async function selectIdealTeamIds(candidates) {
   });
 
   if (!response.ok) {
+    // Capturamos el body para que el error real (key inválida, quota,
+    // modelo no encontrado…) aparezca en los logs de Cloud Run.
+    let bodyText = '<no body>';
+    try {
+      if (typeof response.text === 'function') {
+        bodyText = await response.text();
+      }
+    } catch { /* ignore */ }
+    console.error(`[LLM] Gemini ${response.status} on model "${model}":`, bodyText);
     throw new Error(`Gemini returned ${response.status}`);
   }
 
