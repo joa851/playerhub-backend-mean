@@ -19,6 +19,9 @@ function handleExternalError(res, err) {
 }
 
 // ─── API-Football ──────────────────────────────────────────────────────
+// Declaradas ANTES de /:id para evitar que Express trate "external"
+// como un ObjectId.
+
 // GET /players/external?query=
 router.get('/external', async (req, res) => {
   try {
@@ -48,6 +51,9 @@ router.post('/external/import', async (req, res) => {
 });
 
 // ─── CRUD local ────────────────────────────────────────────────────────
+// Errores: las rutas solo gestionan flujos 4xx esperados (id inválido,
+// recurso no encontrado). Todo lo demás se delega al errorHandler
+// global via next(err).
 
 // GET /players?name=&team=&league=&from=&to=
 router.get('/', async (req, res, next) => {
@@ -81,11 +87,7 @@ router.post('/', async (req, res, next) => {
     const created = await playerService.create(req.body);
     res.status(201).json(created);
   } catch (err) {
-    // Validación de schema falla → 400
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ error: err.message });
-    }
-    next(err);
+    next(err);   // ValidationError → 400 via middleware
   }
 });
 
@@ -101,9 +103,6 @@ router.put('/:id', async (req, res, next) => {
     }
     res.json(updated);
   } catch (err) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ error: err.message });
-    }
     next(err);
   }
 });
@@ -138,10 +137,7 @@ router.post('/:id/comments', async (req, res, next) => {
     }
     res.status(201).json(created);
   } catch (err) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ error: err.message });
-    }
-    next(err);
+    next(err);   // ValidationError del subschema comment → 400
   }
 });
 
