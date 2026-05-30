@@ -50,6 +50,25 @@ router.post('/external/import', async (req, res) => {
   }
 });
 
+// ─── LLM (Gemini) → Equipo Ideal ───────────────────────────────────────
+
+// POST /players/ideal-team
+router.post('/ideal-team', async (req, res, next) => {
+  try {
+    const team = await playerService.idealTeam();
+    res.json(team);
+  } catch (err) {
+    if (err.code === 'NO_KEY') {
+      return res.status(503).json({ error: err.message });
+    }
+    // Gemini caído / cuota agotada / etc → 502.
+    if (err.message?.startsWith('Gemini returned')) {
+      return res.status(502).json({ error: 'LLM unreachable: ' + err.message });
+    }
+    next(err);
+  }
+});
+
 // ─── CRUD local ────────────────────────────────────────────────────────
 // Errores: las rutas solo gestionan flujos 4xx esperados (id inválido,
 // recurso no encontrado). Todo lo demás se delega al errorHandler

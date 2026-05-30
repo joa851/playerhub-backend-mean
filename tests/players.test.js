@@ -375,6 +375,87 @@ describe('POST /players/external/import', () => {
   });
 });
 
+// ─── POST /players/ideal-team (LLM) ────────────────────────────────────
+
+describe('POST /players/ideal-team', () => {
+  let savedFetch;
+  let savedKey;
+
+  beforeEach(() => {
+    savedFetch = global.fetch;
+    savedKey = process.env.LLM_KEY;
+    process.env.LLM_KEY = 'test-key';
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = savedFetch;
+    if (savedKey === undefined) delete process.env.LLM_KEY;
+    else process.env.LLM_KEY = savedKey;
+  });
+
+  it('returns players in the order suggested by Gemini', async () => {
+    const p1 = await seedPlayer({ name: 'Pedri' });
+    const p2 = await seedPlayer({ name: 'Yamal' });
+    const p3 = await seedPlayer({ name: 'Vinicius' });
+
+    // Gemini elige Yamal, Pedri y omite Vinicius
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{
+          content: { parts: [{ text: JSON.stringify({ team: [p2._id.toString(), p1._id.toString()] }) }] },
+        }],
+      }),
+    });
+
+    const res = await request(app).post('/players/ideal-team');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].name).toBe('Yamal');     // primero el que dijo Gemini
+    expect(res.body[1].name).toBe('Pedri');
+    // p3 (Vinicius) no aparece
+    expect(res.body.find(p => p._id === p3._id.toString())).toBeUndefined();
+  });
+
+  it('returns [] when DB has no players (no LLM call)', async () => {
+    const res = await request(app).post('/players/ideal-team');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when LLM_KEY is not configured', async () => {
+    await seedPlayer({ name: 'Pedri' });
+    delete process.env.LLM_KEY;
+    const res = await request(app).post('/players/ideal-team');
+    expect(res.status).toBe(503);
+  });
+
+  it('returns 502 when Gemini returns non-OK', async () => {
+    await seedPlayer({ name: 'Pedri' });
+    global.fetch.mockResolvedValue({ ok: false, status: 429 });
+    const res = await request(app).post('/players/ideal-team');
+    expect(res.status).toBe(502);
+  });
+
+  it('filters out ids returned by LLM that no longer exist in DB', async () => {
+    const p1 = await seedPlayer({ name: 'Pedri' });
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        candidates: [{
+          content: { parts: [{ text: JSON.stringify({ team: [p1._id.toString(), 'ghostid'] }) }] },
+        }],
+      }),
+    });
+    const res = await request(app).post('/players/ideal-team');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].name).toBe('Pedri');
+  });
+});
+
 // ─── DELETE /players/:id/comments/:commentId ───────────────────────────
 
 describe('DELETE /players/:id/comments/:commentId', () => {

@@ -1,4 +1,5 @@
 const Player = require('../models/player');
+const llmService = require('./llmService');
 
 /**
  * Busca players locales con filtros opcionales.
@@ -77,6 +78,22 @@ async function removeComment(playerId, commentId) {
   return { playerFound: true, commentFound: true };
 }
 
+/**
+ * Genera el "Equipo Ideal" con LLM (Gemini).
+ * Pasa todos los jugadores de la BD al LLM, recibe la lista de _id elegidos,
+ * y devuelve los Player completos en el orden que indicó el LLM.
+ */
+async function idealTeam() {
+  const all = await Player.find({});
+  if (all.length === 0) return [];
+
+  const selectedIds = await llmService.selectIdealTeamIds(all);
+
+  // Lookup en memoria para preservar el orden devuelto por el LLM.
+  const byId = new Map(all.map(p => [p._id.toString(), p]));
+  return selectedIds.map(id => byId.get(id)).filter(p => p);
+}
+
 module.exports = {
   findAll,
   findById,
@@ -85,4 +102,5 @@ module.exports = {
   remove,
   addComment,
   removeComment,
+  idealTeam,
 };
