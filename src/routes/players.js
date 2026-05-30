@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const playerService = require('../services/playerService');
 const apiFootballService = require('../services/apiFootballService');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/external', async (req, res) => {
 });
 
 // POST /players/external/import   body: [123, 456, ...]
-router.post('/external/import', async (req, res) => {
+router.post('/external/import', requireAuth, async (req, res) => {
   try {
     const ids = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -101,7 +102,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /players
-router.post('/', async (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const created = await playerService.create(req.body);
     res.status(201).json(created);
@@ -111,7 +112,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // PUT /players/:id
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireAuth, async (req, res, next) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid player id' });
@@ -127,7 +128,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // DELETE /players/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid player id' });
@@ -145,7 +146,7 @@ router.delete('/:id', async (req, res, next) => {
 // ─── Comments (embebidos en el player) ─────────────────────────────────
 
 // POST /players/:id/comments
-router.post('/:id/comments', async (req, res, next) => {
+router.post('/:id/comments', requireAuth, async (req, res, next) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid player id' });
@@ -161,7 +162,7 @@ router.post('/:id/comments', async (req, res, next) => {
 });
 
 // DELETE /players/:id/comments/:commentId
-router.delete('/:id/comments/:commentId', async (req, res, next) => {
+router.delete('/:id/comments/:commentId', requireAuth, async (req, res, next) => {
   try {
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ error: 'Invalid player id' });

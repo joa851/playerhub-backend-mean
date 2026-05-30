@@ -26,6 +26,17 @@ const spec = {
 
   // ─── Schemas reusables ─────────────────────────────────────────────
   components: {
+    securitySchemes: {
+      firebaseBearer: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'Firebase ID token obtenido en el frontend con `user.getIdToken()`. ' +
+          'Requerido en POST/PUT/DELETE de /players, /players/external/import ' +
+          'y /players/:id/comments.',
+      },
+    },
     schemas: {
       Location: {
         type: 'object',
@@ -112,6 +123,7 @@ const spec = {
       post: {
         tags: ['Players'],
         summary: 'Crea un jugador desde formulario',
+        security: [{ firebaseBearer: [] }],
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/Player' } } },
@@ -119,6 +131,7 @@ const spec = {
         responses: {
           201: { description: 'Creado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Player' } } } },
           400: { description: 'Validación falló', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          401: { description: 'Token Firebase ausente o inválido' },
         },
       },
     },
@@ -139,6 +152,7 @@ const spec = {
       put: {
         tags: ['Players'],
         summary: 'Actualiza un jugador',
+        security: [{ firebaseBearer: [] }],
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/Player' } } },
@@ -146,15 +160,18 @@ const spec = {
         responses: {
           200: { description: 'Actualizado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Player' } } } },
           400: { description: 'Id mal formado o validación' },
+          401: { description: 'Token Firebase ausente o inválido' },
           404: { description: 'No existe' },
         },
       },
       delete: {
         tags: ['Players'],
         summary: 'Borra un jugador',
+        security: [{ firebaseBearer: [] }],
         responses: {
           204: { description: 'Borrado' },
           400: { description: 'Id mal formado' },
+          401: { description: 'Token Firebase ausente o inválido' },
           404: { description: 'No existe' },
         },
       },
@@ -167,6 +184,7 @@ const spec = {
       post: {
         tags: ['Comments'],
         summary: 'Añade un comment al array embebido del jugador',
+        security: [{ firebaseBearer: [] }],
         requestBody: {
           required: true,
           content: { 'application/json': { schema: { $ref: '#/components/schemas/Comment' } } },
@@ -174,6 +192,7 @@ const spec = {
         responses: {
           201: { description: 'Comment creado', content: { 'application/json': { schema: { $ref: '#/components/schemas/Comment' } } } },
           400: { description: 'Validación falló' },
+          401: { description: 'Token Firebase ausente o inválido' },
           404: { description: 'Player no existe' },
         },
       },
@@ -187,9 +206,11 @@ const spec = {
       delete: {
         tags: ['Comments'],
         summary: 'Borra un comment por id',
+        security: [{ firebaseBearer: [] }],
         responses: {
           204: { description: 'Borrado' },
           400: { description: 'Id mal formado' },
+          401: { description: 'Token Firebase ausente o inválido' },
           404: { description: 'Player o comment no existen' },
         },
       },
@@ -215,6 +236,7 @@ const spec = {
       post: {
         tags: ['External'],
         summary: 'Importa a la BD local los ids externos indicados',
+        security: [{ firebaseBearer: [] }],
         requestBody: {
           required: true,
           content: {
@@ -227,6 +249,7 @@ const spec = {
         responses: {
           201: { description: 'Players importados', content: { 'application/json': { schema: { type: 'array', items: { $ref: '#/components/schemas/Player' } } } } },
           400: { description: 'Body no es array no-vacío' },
+          401: { description: 'Token Firebase ausente o inválido' },
           502: { description: 'API-Football inalcanzable' },
           503: { description: 'API_FOOTBALL_KEY no configurada' },
         },

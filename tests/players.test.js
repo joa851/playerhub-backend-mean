@@ -1,3 +1,13 @@
+// Mockeamos el middleware de auth como passthrough en este archivo:
+// los tests de rutas validan lógica de negocio, no Firebase. Los tests
+// reales del middleware viven en tests/auth.test.js.
+jest.mock('../src/middleware/auth', () => ({
+  requireAuth: (req, _res, next) => {
+    req.user = { uid: 'test-uid', email: 'test@example.com' };
+    next();
+  },
+}));
+
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
