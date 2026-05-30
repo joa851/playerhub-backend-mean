@@ -146,8 +146,8 @@ jobs:
             --cpu=1 \
             --memory=256Mi \
             --max-instances=2 \
-            --update-env-vars="MONGODB_HOST=34.60.145.174,MONGODB_USER=playerhub,MONGODB_DB=playerhub-mean" \
-            --update-secrets="MONGODB_PASSWORD=playerhub-mongo-password:latest,API_FOOTBALL_KEY=playerhub-api-football-key:latest" \
+            --update-env-vars="MONGODB_HOST=34.60.145.174,MONGODB_USER=playerhub,MONGODB_DB=playerhub-mean,LLM_MODEL=gemini-2.0-flash-001" \
+            --update-secrets="MONGODB_PASSWORD=playerhub-mongo-password:latest,API_FOOTBALL_KEY=playerhub-api-football-key:latest,LLM_KEY=playerhub-llm-key:latest" \
             --quiet
 
       - name: Print service URL
